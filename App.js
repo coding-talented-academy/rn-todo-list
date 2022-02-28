@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, ProgressViewIOS, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { StyleSheet, Text, View, ProgressViewIOS, ScrollView, TouchableOpacity, TextInput, Alert, Modal, Button } from 'react-native';
 import { Fontisto } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
 import { menus } from './Menus';
@@ -15,6 +15,11 @@ export default function App() {
   const [text, setText] = useState("");
   const [todos, setTodos] = useState(null);
   const [completePercent, setCompletePercent] = useState(0);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState({
+    key : null,
+    text : '',
+  });
 
   useEffect(()=>{
     loadTodos()
@@ -22,6 +27,7 @@ export default function App() {
 
   useEffect(()=>{
     if(todos){
+
       calculateCompletionPercent()
     }
   },[todos, currentMenu])
@@ -38,7 +44,6 @@ export default function App() {
   }
 
   const getThemeMode = () => {
-
     switch(currentMenu){
       case menus.GROCERIES :
         return themes.LIGHT_MODE;
@@ -62,6 +67,21 @@ export default function App() {
     saveTodosInStorage(newTodos)
 
     setText("");
+  }
+
+  const saveEditChanged = () => {
+
+    const editedTodos = {
+      ...todos,
+      [editTarget.key] : {
+        ...todos[editTarget.key],
+        text : editTarget.text
+      }
+    }
+
+    setTodos(editedTodos)
+    saveTodosInStorage(editedTodos)
+    setModalOpen(!modalOpen);
   }
 
   const completeTodo = (key) => {
@@ -104,11 +124,26 @@ export default function App() {
     let total = Object.keys(todos)
               .filter(key=>todos[key].type===currentMenu)  
               .length;
+    
+    if(total === 0){
+      setCompletePercent(0)
+      return;
+    }
+
     let completed = Object.keys(todos)
                 .filter(key=>todos[key].type===currentMenu && todos[key].isDone===true)
                 .length;
-    
+  
     setCompletePercent(completed/total)    
+  }
+
+  const editTodo = (key) => {
+    //open modal
+    setModalOpen(true);
+    setEditTarget({
+      key : key,
+      text : todos[key].text
+    });
   }
 
   return (
@@ -118,13 +153,41 @@ export default function App() {
       <View style={styles.headerBox}>
 
       <TouchableOpacity onPress={() => setCurrentMenu(menus.GROCERIES)}>
-        <Text style={{...styles.menu, color : getThemeMode() === themes.LIGHT_MODE ? themes.LIGHT_MODE.TEXT_COLOR : themes.LIGHT_MODE.DEACTIVE_MENU_COLOR}}>Groceries</Text>
+        <Text style={{...styles.menu, color : getThemeMode() === themes.LIGHT_MODE ? themes.LIGHT_MODE.TEXT_COLOR.BASIC : themes.LIGHT_MODE.TEXT_COLOR.DEACTIVE}}>Groceries</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => setCurrentMenu(menus.WORK)}>
-      <Text style={{...styles.menu, color : getThemeMode() === themes.DARK_MODE ? themes.DARK_MODE.TEXT_COLOR : themes.DARK_MODE.DEACTIVE_MENU_COLOR}}>Work</Text>
+      <Text style={{...styles.menu, color : getThemeMode() === themes.DARK_MODE ? themes.DARK_MODE.TEXT_COLOR.BASIC : themes.DARK_MODE.TEXT_COLOR.DEACTIVE}}>Work</Text>
       </TouchableOpacity>
       
       </View>
+      
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalOpen}
+        onRequestClose={() => {
+          setModalOpen(!modalOpen);
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <TextInput autoFocus style={styles.modalText} onChangeText={(text)=>setEditTarget({...editTarget, text : text})}>{editTarget.text}</TextInput>
+
+            <View style={{flexDirection: 'row', justifyContent: 'space-between', }}>
+            <Button
+              title='cancle'
+              color={'red'}
+              onPress={() => setModalOpen(!modalOpen)}
+            />
+            <Button
+              title='save'
+              onPress={saveEditChanged}
+            />
+            </View>
+              
+          </View>
+        </View>
+      </Modal>
 
       <View style={styles.progressBox}>
         <ProgressViewIOS
@@ -156,11 +219,20 @@ export default function App() {
               isChecked={todos[key].isDone}
               onClick={()=>completeTodo(key)}
             />
-            <TextInput editable={false} style={{...styles.todoText, color : todos[key].isDone ? getThemeMode().TEXT_COLOR.DEACTIVE : getThemeMode().TEXT_COLOR.BASIC, textDecorationLine : todos[key].isDone ? 'line-through' : ""}}>{todos[key].text}</TextInput>
+            <Text
+              style={{...styles.todoText, color : todos[key].isDone ? getThemeMode().TEXT_COLOR.DEACTIVE : getThemeMode().TEXT_COLOR.BASIC, textDecorationLine : todos[key].isDone ? 'line-through' : ""}}>
+              {todos[key].text}
+            </Text>
             
+            <View style={{flexDirection : "row"}}>
+            <TouchableOpacity style={{marginRight : 10}} onPress={()=>editTodo(key)}>
+              <Fontisto name="scissors" size={15}></Fontisto>
+            </TouchableOpacity>
+
             <TouchableOpacity onPress={()=>deleteTodo(key)}>
               <Fontisto name="trash" size={15}></Fontisto>
             </TouchableOpacity>
+            </View>
           </View>
 
         ))}
@@ -221,5 +293,37 @@ const styles = StyleSheet.create({
     fontSize : 15,
     paddingVertical : 15,
     paddingHorizontal : 30,
+  },
+
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 22
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 15,
+    paddingVertical: 25,
+    paddingHorizontal : 65,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5
+  },
+  textStyle: {
+    color: "white",
+    fontWeight: "bold",
+    textAlign: "center"
+  },
+  modalText: {
+    marginBottom: 15,
+    textAlign: "center"
   }
 });
